@@ -50,6 +50,11 @@ class RobotDriver:
         self._robot.home_position = self._as_target(value)
 
     @property
+    def limits(self) -> list[float]:
+        """Maximum absolute position per axis (mm)."""
+        return list(self._robot.robot_limits)
+
+    @property
     def gripper_closed(self) -> bool:
         return self._robot.gripper_state == GripperState.CLOSED
 
