@@ -1,5 +1,9 @@
+vention-communication==0.3.0
 vention-state-machine==0.3.1
 fastapi>=0.100.0
 uvicorn[standard]>=0.23.0
 vention-storage==0.5.4
 
+# testing
+pytest>=8.0
+httpx>=0.28.1,<0.29
