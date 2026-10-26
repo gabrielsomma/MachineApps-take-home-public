@@ -5,41 +5,7 @@ import pytest
 from app.config import CellConfig
 from app.geometry import TableId, table_point_to_robot_frame
 from app.machine import GantryMachine
-from app.robot_driver import MotionError, RobotDriver
-
-
-class FastDriver(RobotDriver):
-    """Teleports to each target so sequences run in milliseconds.
-
-    Keeps the real simulator's validation by issuing one `move_to` call first,
-    and records every target it was sent.
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.targets: list[list[float]] = []
-
-    async def move(self, target, speed):
-        goal = self._as_target(target)
-        _, _, error = self._robot.move_to(list(goal), speed)
-        if error:
-            raise MotionError(error)
-        self.targets.append(goal)
-        self._robot.axis_speed = [0, 0, 0]
-        self._robot.current_position = list(goal)
-        await asyncio.sleep(0)
-        return list(goal)
-
-
-class StuckDriver(FastDriver):
-    """Never finishes a move, to exercise the motion timeout."""
-
-    async def move(self, target, speed):
-        self._moving = True
-        try:
-            await asyncio.sleep(3600)
-        finally:
-            self._moving = False
+from tests.fakes import FastDriver, StuckDriver
 
 
 def make_machine(driver=None, **config):

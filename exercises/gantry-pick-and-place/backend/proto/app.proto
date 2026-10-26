@@ -1,0 +1,53 @@
+syntax = "proto3";
+package vention.app.v1;
+
+import "google/protobuf/empty.proto";
+
+
+message Point2 {
+  double x = 1;
+  double y = 2;
+}
+
+message Point3 {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+message Config {
+  Point2 cube = 1;
+  Point2 destination = 2;
+  Point3 home = 3;
+  double safe_z = 4;
+  double pick_z = 5;
+  int32 speed = 6;
+}
+
+message CommandResult {
+  bool ok = 1;
+  string error = 2;
+}
+
+message Telemetry {
+  string state = 1;
+  Point3 position = 2;
+  bool gripper_closed = 3;
+  bool moving = 4;
+  Point3 cube_position = 5;
+  Point3 destination_position = 6;
+  string error = 7;
+}
+
+service GantryAppService {
+  rpc get_config (google.protobuf.Empty) returns (Config);
+  rpc set_config (Config) returns (CommandResult);
+  rpc get_robot_position (google.protobuf.Empty) returns (Point3);
+  rpc move_robot (Point3) returns (CommandResult);
+  rpc home_robot (google.protobuf.Empty) returns (CommandResult);
+  rpc start_sequence (google.protobuf.Empty) returns (CommandResult);
+  rpc stop (google.protobuf.Empty) returns (CommandResult);
+  rpc reset_fault (google.protobuf.Empty) returns (CommandResult);
+  rpc get_status (google.protobuf.Empty) returns (Telemetry);
+  rpc telemetry (google.protobuf.Empty) returns (stream Telemetry);
+}

@@ -1,0 +1,10 @@
+# Generates the typed API client from the proto emitted by the backend.
+# Run with `npm run gen` (also runs automatically before `dev` and `build`).
+version: v2
+inputs:
+  - directory: ../backend/proto
+plugins:
+  - local: protoc-gen-es
+    out: src/gen
+    opt: target=ts
+clean: true
