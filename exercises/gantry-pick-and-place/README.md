@@ -6,6 +6,8 @@ A proof-of-concept for a 3-axis gantry cell:
 
 The original exercise statement is [at the end of this file](#exercise-statement), with the checklist ticked.
 
+**Demo video:** [docs/Demo.mp4](docs/Demo.mp4). It shows a manual move and Home, config validation, a full pick-and-place cycle, Stop and Reset after a fault, persistence across a restart, and the test run. GitHub may not play a file this size in the browser; use "View raw" to download it.
+
 - [Run with Docker (one command)](#run-with-docker-one-command)
 - [Setup and run (without Docker)](#setup-and-run)
 - [Project structure](#project-structure)
@@ -223,7 +225,7 @@ Commands return `{ok, error}`. A refused command (e.g. Start while busy) comes b
 - **Telemetry is polled and published at about 20 Hz** (about 17 Hz measured on Windows), not pushed on every change. That's simple and plenty for a dashboard.
 - **Robot state saves are audited.** Each save adds a small audit-log row (about 10 per cycle); a long-running cell would prune them.
 - **The vention libraries are pinned to Python 3.10** and are thinly documented. I read their source to confirm several behaviours: the library's own `to_fault` cleanup is never awaited (so the machine cancels its tasks itself), state names can't contain underscores, responses are snake_case while requests also accept camelCase, and stream queues bind to the first event loop.
-- **Not done:** frontend component tests (Vitest) and the demo video.
+- **Not done:** frontend component tests (Vitest); the backend tests cover the logic.
 
 ---
 
@@ -274,7 +276,7 @@ You must simulate a "Pick and Place" sequence: picking a cube from **Table A** a
   - [x] **Persistence:** Use [`vention-storage`](https://pypi.org/project/vention-storage/) to save configuration (e.g., cube locations) between restarts.
   - [x] **Testing:** Write unit tests for the backend logic or component tests for the frontend.
   - [x] **Containerization:** Run the whole stack (Backend + Frontend) with a single command (e.g., Docker Compose).
-  - [ ] **Demo:** Include a short video recording of your solution in action.
+  - [x] **Demo:** Include a short video recording of your solution in action. See [docs/Demo.mp4](docs/Demo.mp4).
 
 ## **Technical Resources**
 
@@ -302,7 +304,7 @@ npm run dev
   - [x] Include a **README** documenting:
       - Setup and run instructions.
       - Design decisions, assumptions, and trade-offs.
-  - [ ] Push your changes and share the repository link.
+  - [x] Push your changes and share the repository link.
 
 -----
 
