@@ -23,7 +23,7 @@ from state_machine.defs import State, StateGroup, Trigger
 
 from app.config import CellConfig, validate_config
 from app.geometry import TableId, table_point_to_robot_frame
-from app.robot_driver import MotionError, RobotDriver
+from app.robot_driver import GantryDriver, MotionError
 
 
 class Homing(StateGroup):
@@ -88,6 +88,16 @@ TRANSITIONS = [
 
 
 @dataclass
+class RobotSnapshot:
+    """The robot's physical state, saved so it survives a backend restart."""
+
+    position: list[float]
+    gripper_closed: bool
+    cube_position: list[float]
+    cube_held: bool
+
+
+@dataclass
 class MachineStatus:
     state: str
     position: list[float]
@@ -105,8 +115,10 @@ class GantryMachine(StateMachine):
     TIMEOUT_MARGIN_S = 2.0
     """A move faults if it takes longer than expected_time * factor + margin."""
 
-    def __init__(self, driver: Optional[RobotDriver] = None, config: Optional[CellConfig] = None) -> None:
-        self.driver = driver or RobotDriver()
+    def __init__(self, driver: GantryDriver, config: Optional[CellConfig] = None) -> None:
+        # The driver is injected: main.py picks the simulator, tests pass a fake,
+        # and a real-hardware driver could be dropped in without touching this file.
+        self.driver = driver
         self.config = config or CellConfig()
         self.last_error: Optional[str] = None
         self._jog_target: list[float] = self.driver.position
@@ -173,6 +185,28 @@ class GantryMachine(StateMachine):
             destination_position=[*self._destination_xy(), self.config.pick_z],
             last_error=self.last_error,
         )
+
+    def robot_snapshot(self) -> RobotSnapshot:
+        return RobotSnapshot(
+            position=self.driver.position,
+            gripper_closed=self.driver.gripper_closed,
+            cube_position=self.cube_position,
+            cube_held=self._holding_cube,
+        )
+
+    def restore_robot_state(self, snapshot: RobotSnapshot) -> None:
+        """Restore the gripper and simulated cube after a restart.
+
+        The robot's position is restored by the driver (it is built at the saved
+        position). The machine itself always restarts in `ready`: resuming a
+        half-finished motion would be unsafe.
+        """
+        if snapshot.gripper_closed:
+            self.driver.close_gripper()
+        else:
+            self.driver.open_gripper()
+        self._holding_cube = snapshot.cube_held
+        self._cube_rest = list(snapshot.cube_position)
 
     @property
     def cube_position(self) -> list[float]:

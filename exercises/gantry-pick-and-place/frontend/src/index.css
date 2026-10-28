@@ -1,52 +1,555 @@
+/* ------------------------------------------------------------------ tokens */
+
 :root {
   color-scheme: light dark;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  line-height: 1.5;
+  line-height: 1.45;
+
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --text: #1f2328;
+  --muted: #656d76;
+  --border: #d0d7de;
+  --accent: #0969da;
   --ok: #1a7f37;
+  --warning: #9a6700;
   --error: #cf222e;
-  --muted: #6e7781;
+
+  --table: #4f7fd1;
+  --table-text: #ffffff;
+  --footprint: #2b3a55;
+  --grid: rgba(101, 109, 118, 0.15);
+  --axis: #e5484d;
+  --cube: #e8a33d;
+  --destination: #1a7f37;
+  --head: #1f2328;
+  --bridge: rgba(31, 35, 40, 0.35);
+  --ghost: #8250df;
+
+  --warning-bg: #fff8c5;
+  --error-bg: #ffebe9;
+  --notice-bg: #ddf4ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --text: #e6edf3;
+    --muted: #8d96a0;
+    --border: #30363d;
+    --accent: #4493f8;
+    --ok: #3fb950;
+    --warning: #d29922;
+    --error: #f85149;
+
+    --table: #3b64b0;
+    --footprint: #8d96a0;
+    --grid: rgba(141, 150, 160, 0.15);
+    --head: #e6edf3;
+    --bridge: rgba(230, 237, 243, 0.35);
+    --ghost: #a371f7;
+
+    --warning-bg: #3b2e00;
+    --error-bg: #42110f;
+    --notice-bg: #0c2d4a;
+  }
+}
+
+/* ------------------------------------------------------------------ base */
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--text);
 }
 
-.connection-check {
-  max-width: 720px;
-  margin: 2rem auto;
-  padding: 0 16px;
+h1 {
+  margin: 0;
+  font-size: 1.35rem;
 }
+
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.danger {
+  background: var(--error);
+  border-color: var(--error);
+  color: #fff;
+}
+
+button.link {
+  border: none;
+  background: none;
+  padding: 0 0.25rem;
+}
+
+input {
+  font: inherit;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.hint {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* ---------------------------------------------------------------- layout */
+
+.app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.header-status {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* While disconnected, the data shown is stale: grey it out. */
+.layout.stale {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+.side {
+  display: grid;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* --------------------------------------------------------------- badges */
 
 .badge {
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 999px;
-  color: white;
-  font-size: 0.85em;
+  font-size: 0.8rem;
+  color: #fff;
+  background: var(--muted);
+  white-space: nowrap;
 }
 
 .badge-connected {
   background: var(--ok);
 }
 
-.badge-connecting {
-  background: var(--muted);
-}
-
 .badge-disconnected {
   background: var(--error);
 }
 
-.ok {
+.state-badge.state-ready {
+  background: var(--ok);
+}
+
+.state-badge.state-busy {
+  background: var(--accent);
+}
+
+.state-badge.state-fault {
+  background: var(--error);
+}
+
+/* -------------------------------------------------------------- banners */
+
+.banners {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.banners:empty {
+  display: none;
+}
+
+.banner {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.banner-warning {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+}
+
+.banner-error {
+  background: var(--error-bg);
+  border-color: var(--error);
+}
+
+.banner-notice {
+  background: var(--notice-bg);
+  border-color: var(--accent);
+}
+
+.banner-detail {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------- cell views */
+
+.cell-views {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.top-view {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.top-view .footprint {
+  fill: none;
+  stroke: var(--footprint);
+  stroke-width: 14;
+}
+
+.top-view .grid line {
+  stroke: var(--grid);
+  stroke-width: 3;
+}
+
+.top-view .table polygon {
+  fill: var(--table);
+  opacity: 0.85;
+}
+
+.top-view .table-label {
+  fill: var(--table-text);
+  font-size: 56px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.top-view .axis {
+  stroke: var(--axis);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.top-view .axis-label {
+  fill: var(--axis);
+  font-size: 40px;
+  font-weight: 600;
+}
+
+.top-view .route {
+  stroke: var(--muted);
+  stroke-width: 5;
+  stroke-dasharray: 20 16;
+}
+
+.top-view .destination {
+  fill: none;
+  stroke: var(--destination);
+  stroke-width: 8;
+  stroke-dasharray: 14 10;
+}
+
+.top-view .ghost {
+  fill: none;
+  stroke: var(--ghost);
+  stroke-width: 7;
+  stroke-dasharray: 10 8;
+}
+
+.top-view .cube {
+  fill: var(--cube);
+  stroke: #7a4e0e;
+  stroke-width: 4;
+}
+
+.top-view .home line {
+  stroke: var(--muted);
+  stroke-width: 6;
+}
+
+.top-view .bridge {
+  stroke: var(--bridge);
+  stroke-width: 26;
+}
+
+.top-view .head {
+  fill: none;
+  stroke: var(--head);
+  stroke-width: 8;
+  stroke-dasharray: 18 10;
+}
+
+.top-view .head.closed {
+  stroke-width: 18;
+  stroke-dasharray: none;
+}
+
+.top-view .tool-point {
+  fill: var(--head);
+}
+
+.top-view .scale line {
+  stroke: var(--muted);
+  stroke-width: 8;
+}
+
+.top-view .scale text {
+  fill: var(--muted);
+  font-size: 40px;
+  dominant-baseline: middle;
+}
+
+.z-gauge {
+  width: 110px;
+  flex: none;
+}
+
+.z-gauge .track {
+  stroke: var(--border);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.z-gauge .mark line {
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.z-gauge text {
+  fill: var(--muted);
+  font-size: 11px;
+  dominant-baseline: middle;
+}
+
+.z-gauge .caption {
+  text-anchor: middle;
+  font-weight: 600;
+}
+
+.z-gauge .indicator rect {
+  fill: var(--accent);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  border-radius: 2px;
+}
+
+.swatch-head {
+  border-radius: 50%;
+  border: 3px solid var(--head);
+}
+
+.swatch-cube {
+  background: var(--cube);
+}
+
+.swatch-destination {
+  border: 2px dashed var(--destination);
+}
+
+.swatch-ghost {
+  border: 2px dashed var(--ghost);
+}
+
+.swatch-home {
+  background: linear-gradient(var(--muted), var(--muted)) center / 100% 2px no-repeat,
+    linear-gradient(var(--muted), var(--muted)) center / 2px 100% no-repeat;
+}
+
+/* ------------------------------------------------------------ telemetry */
+
+.state {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.state-ready .state-label {
   color: var(--ok);
 }
 
-.error {
+.state-busy .state-label {
+  color: var(--accent);
+}
+
+.state-fault .state-label {
   color: var(--error);
 }
 
-pre {
-  padding: 12px;
-  border-radius: 6px;
-  background: rgba(127, 127, 127, 0.12);
-  overflow-x: auto;
+.state-step {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.sequence-progress {
+  width: 100%;
+  height: 8px;
+  margin-top: 6px;
+  accent-color: var(--accent);
+}
+
+.readouts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 1rem;
+  margin: 0.75rem 0 0;
+}
+
+.readouts dt {
+  color: var(--muted);
+}
+
+.readouts dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------- forms */
+
+fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: none;
+}
+
+legend {
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.field {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+}
+
+.form-message {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+.form-message.ok {
+  color: var(--ok);
+}
+
+.form-message.warning {
+  color: var(--warning);
+}
+
+.form-message.error {
+  color: var(--error);
 }

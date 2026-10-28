@@ -1,6 +1,6 @@
-"""Persist the cell configuration with vention-storage.
+"""Persist the cell configuration and the robot's last known state with vention-storage.
 
-We deliberately don't call `storage.bootstrap()`: it would also mount REST
+Both are single-row tables. We deliberately don't call `storage.bootstrap()`: it would also mount REST
 CRUD endpoints for the config table (and a /db backup/restore router), which
 would let clients change the configuration without validation and while the
 machine is busy. Using the lower-level pieces keeps `set_config` as the only
@@ -17,9 +17,11 @@ from storage.accessor import ModelAccessor
 from storage.database import get_engine, set_database_url
 
 from app.config import CellConfig
+from app.machine import RobotSnapshot
 
 
 CONFIG_ROW_ID = 1
+ROBOT_STATE_ROW_ID = 1
 
 
 class ConfigRecord(SQLModel, table=True):
@@ -38,6 +40,22 @@ class ConfigRecord(SQLModel, table=True):
     safe_z: float
     pick_z: float
     speed: int
+
+
+class RobotStateRecord(SQLModel, table=True):
+    """The robot's last known physical state (flattened `RobotSnapshot`)."""
+
+    __tablename__ = "robot_state"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    x: float
+    y: float
+    z: float
+    gripper_closed: bool
+    cube_x: float
+    cube_y: float
+    cube_z: float
+    cube_held: bool
 
 
 def init_database(url: str) -> None:
@@ -65,6 +83,40 @@ class ConfigStore:
 
     def save(self, config: CellConfig, actor: str = "operator") -> None:
         self._accessor.save(_to_record(config), actor=actor)
+
+
+class RobotStateStore:
+    """Saved after every state transition (i.e. after each move, grip, stop or fault)."""
+
+    def __init__(self) -> None:
+        self._accessor = ModelAccessor(RobotStateRecord, "robot_state")
+
+    def load(self) -> Optional[RobotSnapshot]:
+        record = self._accessor.get(ROBOT_STATE_ROW_ID)
+        if record is None:
+            return None
+        return RobotSnapshot(
+            position=[record.x, record.y, record.z],
+            gripper_closed=record.gripper_closed,
+            cube_position=[record.cube_x, record.cube_y, record.cube_z],
+            cube_held=record.cube_held,
+        )
+
+    def save(self, snapshot: RobotSnapshot, actor: str = "machine") -> None:
+        x, y, z = snapshot.position
+        cube_x, cube_y, cube_z = snapshot.cube_position
+        record = RobotStateRecord(
+            id=ROBOT_STATE_ROW_ID,
+            x=x,
+            y=y,
+            z=z,
+            gripper_closed=snapshot.gripper_closed,
+            cube_x=cube_x,
+            cube_y=cube_y,
+            cube_z=cube_z,
+            cube_held=snapshot.cube_held,
+        )
+        self._accessor.save(record, actor=actor)
 
 
 def _to_record(config: CellConfig) -> ConfigRecord:

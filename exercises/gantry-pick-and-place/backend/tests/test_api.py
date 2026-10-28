@@ -7,9 +7,10 @@ from fastapi.testclient import TestClient
 
 from app import api
 from app.config import CellConfig
-from app.config_store import ConfigStore
-from app.machine import GantryMachine
-from app.main import PROTO_PATH, app, load_startup_config
+from app.config_store import ConfigStore, RobotStateStore
+from app.machine import GantryMachine, RobotSnapshot
+from app.main import PROTO_PATH, app, create_machine, load_startup_config, load_startup_robot
+from app.robot_driver import RobotDriver
 from tests.fakes import FastDriver, StuckDriver
 
 
@@ -27,7 +28,8 @@ def database(tmp_path_factory):
 
 
 def install_machine(driver=None):
-    machine = GantryMachine(driver=driver or FastDriver(), config=CellConfig())
+    # Built like main.py builds it, so robot state is saved after each transition.
+    machine = create_machine(driver or FastDriver(), CellConfig(), RobotStateStore())
     machine.GRIPPER_DELAY_S = 0
     api.runtime.machine = machine
     return machine
@@ -125,9 +127,32 @@ def test_set_config_accepts_camel_case_too(client):
     assert rpc(client, "get_config")["pick_z"] == -200.0
 
 
+def test_zero_valued_fields_may_be_omitted(client):
+    # Protobuf JSON leaves out fields at their default value: this is what the
+    # generated browser client sends for home (0, 0, 0) and a travel height of 0.
+    body = {"cube": {"x": 600, "y": 400}, "destination": {"x": 50, "y": 450}, "home": {}, "pickZ": -250, "speed": 100}
+    response = rpc(client, "set_config", body)
+    assert response["ok"] is False
+    assert "Table A" in response["error"]
+
+    body["cube"] = {"x": 100, "y": 400}
+    assert rpc(client, "set_config", body) == {"ok": True, "error": ""}
+    config = rpc(client, "get_config")
+    assert config["home"] == {"x": 0.0, "y": 0.0, "z": 0.0}
+    assert config["safe_z"] == 0.0
+
+
+def test_move_robot_to_origin_with_empty_body(client):
+    rpc(client, "move_robot", {"x": 10, "y": 0, "z": 0})
+    wait_for_state(client, "ready")
+    assert rpc(client, "move_robot", {}) == {"ok": True, "error": ""}
+    wait_for_state(client, "ready")
+    assert rpc(client, "get_robot_position") == {"x": 0.0, "y": 0.0, "z": 0.0}
+
+
 def test_malformed_request_returns_error_envelope(client):
     # The library turns validation exceptions into {"error": {...}} with HTTP 200.
-    response = rpc(client, "set_config", {"cube": {"x": 1}})
+    response = rpc(client, "set_config", {"speed": "fast"})
     assert "error" in response and "code" in response["error"]
 
 
@@ -195,6 +220,50 @@ def test_config_survives_restart(client):
     restarted = GantryMachine(driver=FastDriver(), config=config)
     assert restarted.config.cube == (100.0, 400.0)
     assert restarted.config.speed == 80
+
+
+def test_robot_state_saved_after_each_move(client):
+    rpc(client, "move_robot", {"x": 10, "y": 20, "z": -30})
+    wait_for_state(client, "ready")
+    assert RobotStateStore().load().position == [10.0, 20.0, -30.0]
+
+
+def test_robot_state_saved_where_a_stopped_move_halted(client):
+    # Real simulator driver: 50 mm at 100 mm/s takes 0.5 s; stop it halfway.
+    install_machine(RobotDriver())
+    rpc(client, "move_robot", {"x": 50, "y": 0, "z": 0})
+    time.sleep(0.2)
+    rpc(client, "stop")
+    wait_for_state(client, "fault")
+
+    saved = RobotStateStore().load().position
+    current = rpc(client, "get_robot_position")
+    assert 0 < saved[0] < 50
+    assert saved == [current["x"], current["y"], current["z"]]
+
+
+def test_robot_state_restored_after_restart(client):
+    rpc(client, "start_sequence")
+    wait_for_state(client, "ready")
+    before = rpc(client, "get_status")
+
+    # What startup does: driver at the saved position, then restore the cube/gripper.
+    driver, snapshot = load_startup_robot(RobotStateStore())
+    restarted = create_machine(driver, CellConfig(), RobotStateStore(), snapshot)
+    status = restarted.status()
+    assert status.state == "ready"
+    assert status.position == [before["position"][k] for k in "xyz"]
+    assert status.cube_position == [before["cube_position"][k] for k in "xyz"]
+    assert status.gripper_closed is False
+
+
+def test_invalid_saved_robot_state_falls_back_to_origin(client):
+    RobotStateStore().save(
+        RobotSnapshot(position=[5000, 0, 0], gripper_closed=False, cube_position=[0, 0, 0], cube_held=False)
+    )
+    driver, snapshot = load_startup_robot(RobotStateStore())
+    assert driver.position == [0.0, 0.0, 0.0]
+    assert snapshot is None
 
 
 def test_invalid_saved_config_falls_back_to_defaults(client):

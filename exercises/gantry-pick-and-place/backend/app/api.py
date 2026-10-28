@@ -11,6 +11,11 @@ into an HTTP 200 with an "error" body, so commands return `CommandResult`.
 Requests accept camelCase or snake_case field names (generated Connect clients
 send camelCase); responses use the snake_case proto field names, which
 protobuf JSON parsers also accept.
+
+Request messages give every field its proto3 default (zero / empty message):
+protobuf JSON *omits* fields that hold their default value, so a client sends
+`home: {}` for (0, 0, 0) and no `safeZ` at all for 0. Required Pydantic fields
+would reject those requests.
 """
 
 from __future__ import annotations
@@ -18,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from communication.decorators import action, stream
 
@@ -46,25 +51,25 @@ runtime = Runtime()
 
 
 class Point2(BaseModel):
-    x: float
-    y: float
+    x: float = 0.0
+    y: float = 0.0
 
 
 class Point3(BaseModel):
-    x: float
-    y: float
-    z: float
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
 
 
 class Config(BaseModel):
-    cube: Point2
+    cube: Point2 = Field(default_factory=Point2)
     """Cube start position in Table A's frame (mm)."""
-    destination: Point2
+    destination: Point2 = Field(default_factory=Point2)
     """Cube destination in Table B's frame (mm)."""
-    home: Point3
-    safe_z: float
-    pick_z: float
-    speed: int
+    home: Point3 = Field(default_factory=Point3)
+    safe_z: float = 0.0
+    pick_z: float = 0.0
+    speed: int = 0
 
 
 class CommandResult(BaseModel):

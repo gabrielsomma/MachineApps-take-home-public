@@ -91,9 +91,47 @@ def test_cube_follows_gripper_while_held():
     assert seen == {"held": True, "gripper": True}
 
 
+def test_snapshot_while_carrying_and_restore_after_restart():
+    machine = make_machine()
+    snapshots = {}
+
+    async def scenario():
+        machine.request_start()
+        await wait_for_state(machine, "PickPlace_moveToDest")
+        snapshots["carrying"] = machine.robot_snapshot()
+        await wait_for_state(machine, "ready")
+
+    run(scenario())
+    carrying = snapshots["carrying"]
+    assert carrying.cube_held is True
+    assert carrying.gripper_closed is True
+    assert carrying.cube_position == carrying.position
+
+    # "Restart": a new driver built at the saved position, then restore.
+    restarted = make_machine(driver=FastDriver(position=carrying.position))
+    restarted.restore_robot_state(carrying)
+    assert restarted.state == "ready"
+    assert restarted.driver.gripper_closed is True
+    assert restarted.cube_position == carrying.position
+
+
+def test_snapshot_after_sequence_has_cube_on_table_b():
+    machine = make_machine()
+
+    async def scenario():
+        machine.request_start()
+        await wait_for_state(machine, "PickPlace_liftClear")
+        await wait_for_state(machine, "ready")
+
+    run(scenario())
+    snapshot = machine.robot_snapshot()
+    assert snapshot.cube_held is False
+    assert snapshot.gripper_closed is False
+    assert snapshot.cube_position == machine.status().destination_position
+
+
 def test_home_lifts_first_then_moves_home():
-    driver = FastDriver()
-    driver._robot.current_position = [100.0, 100.0, -200.0]
+    driver = FastDriver(position=[100, 100, -200])
     machine = make_machine(driver=driver)
 
     async def scenario():
@@ -128,9 +166,9 @@ def test_motion_error_faults_and_reset_recovers():
 
     async def scenario():
         assert machine.request_start() is None
-        # Shrink the simulator's Z range after validation passed, so the
-        # lowering move (to -300) is rejected by the simulator itself.
-        machine.driver._robot.robot_limits = [1000, 1000, 100]
+        # Shrink the driver's Z range after validation passed, so the
+        # lowering move (to -300) is rejected by the driver at runtime.
+        machine.driver.limits = [1000, 1000, 100]
         await wait_for_state(machine, "fault")
 
     run(scenario())

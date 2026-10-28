@@ -1,39 +1,88 @@
-"""Test doubles for RobotDriver."""
+"""Test doubles implementing the `GantryDriver` protocol.
+
+They don't use the simulator: `test_robot_driver.py` covers the real driver.
+"""
 
 import asyncio
+from typing import Sequence
 
-from app.robot_driver import MotionError, RobotDriver
+from app.robot_driver import MotionError
 
 
-class FastDriver(RobotDriver):
+class FastDriver:
     """Teleports to each target so sequences run in milliseconds.
 
-    Keeps the real simulator's validation by issuing one `move_to` call first,
-    and records every target it was sent.
+    Checks speed and axis limits like the real driver, and records every
+    target it was sent.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        position: Sequence[float] = (0.0, 0.0, 0.0),
+        home_position: Sequence[float] = (0.0, 0.0, 0.0),
+        limits: Sequence[float] = (1000.0, 1000.0, 1000.0),
+    ) -> None:
+        self._position = [float(v) for v in position]
+        self._home_position = [float(v) for v in home_position]
+        self.limits = [float(v) for v in limits]
+        self._gripper_closed = False
+        self._moving = False
         self.targets: list[list[float]] = []
 
-    async def move(self, target, speed):
-        goal = self._as_target(target)
-        _, _, error = self._robot.move_to(list(goal), speed)
-        if error:
-            raise MotionError(error)
+    @property
+    def position(self) -> list[float]:
+        return list(self._position)
+
+    @property
+    def home_position(self) -> list[float]:
+        return list(self._home_position)
+
+    @home_position.setter
+    def home_position(self, value: Sequence[float]) -> None:
+        self._home_position = [float(v) for v in value]
+
+    @property
+    def gripper_closed(self) -> bool:
+        return self._gripper_closed
+
+    @property
+    def is_moving(self) -> bool:
+        return self._moving
+
+    def open_gripper(self) -> None:
+        self._gripper_closed = False
+
+    def close_gripper(self) -> None:
+        self._gripper_closed = True
+
+    async def move(self, target: Sequence[float], speed: int) -> list[float]:
+        goal = self._check(target, speed)
         self.targets.append(goal)
-        self._robot.axis_speed = [0, 0, 0]
-        self._robot.current_position = list(goal)
+        self._position = list(goal)
         await asyncio.sleep(0)
         return list(goal)
+
+    def _check(self, target: Sequence[float], speed: int) -> list[float]:
+        if not 0 < speed <= 100:
+            raise MotionError(f"Speed must be in (0, 100] mm/s, got {speed}")
+        goal = [float(v) for v in target]
+        for axis, value in enumerate(goal):
+            if abs(value) > self.limits[axis]:
+                raise MotionError(
+                    f"Requested position of : {value} for axis {axis} "
+                    f"is outside of the limits {self.limits}"
+                )
+        return goal
 
 
 class StuckDriver(FastDriver):
     """Never finishes a move, to exercise timeouts and busy states."""
 
-    async def move(self, target, speed):
+    async def move(self, target: Sequence[float], speed: int) -> list[float]:
+        self._check(target, speed)
         self._moving = True
         try:
             await asyncio.sleep(3600)
         finally:
             self._moving = False
+        return self.position

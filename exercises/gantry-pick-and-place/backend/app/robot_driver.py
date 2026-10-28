@@ -11,7 +11,7 @@ The simulator is left untouched. This driver handles its quirks:
 from __future__ import annotations
 
 import asyncio
-from typing import Optional, Sequence
+from typing import Protocol, Sequence
 
 from robot_sim import GripperState, Robot
 
@@ -24,17 +24,57 @@ class MotionError(Exception):
     """Raised when the simulator rejects or fails a motion."""
 
 
+class GantryDriver(Protocol):
+    """What the state machine needs from a robot driver.
+
+    `RobotDriver` (the simulator) satisfies it; so could a real-hardware driver
+    or a test fake, without inheriting from anything.
+    """
+
+    @property
+    def position(self) -> list[float]: ...
+
+    @property
+    def limits(self) -> list[float]: ...
+
+    @property
+    def gripper_closed(self) -> bool: ...
+
+    @property
+    def is_moving(self) -> bool: ...
+
+    @property
+    def home_position(self) -> list[float]: ...
+
+    @home_position.setter
+    def home_position(self, value: Sequence[float]) -> None: ...
+
+    async def move(self, target: Sequence[float], speed: int) -> list[float]:
+        """Move to `target` (mm) at `speed` (mm/s); raise MotionError on failure."""
+        ...
+
+    def open_gripper(self) -> None: ...
+
+    def close_gripper(self) -> None: ...
+
+
 class RobotDriver:
+    """`GantryDriver` implementation backed by the provided simulator."""
+
     def __init__(
         self,
-        robot: Optional[Robot] = None,
+        initial_position: Sequence[float] = (0.0, 0.0, 0.0),
         home_position: Sequence[float] = (0.0, 0.0, 0.0),
     ) -> None:
+        """`initial_position` lets the app restore where the robot was before a restart."""
         # Always pass fresh lists: Robot's defaults are shared mutable lists.
-        self._robot = robot or Robot(
-            initial_position=[0.0, 0.0, 0.0],
-            home_position=[float(v) for v in home_position],
+        self._robot = Robot(
+            initial_position=self._as_target(initial_position),
+            home_position=self._as_target(home_position),
         )
+        start = self._robot.current_position
+        if any(abs(v) > limit for v, limit in zip(start, self._robot.robot_limits)):
+            raise MotionError(f"Initial position {start} is outside the robot limits")
         self._moving = False
 
     @property

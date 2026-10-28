@@ -21,6 +21,17 @@ def test_move_reaches_target_exactly():
     assert not driver.is_moving
 
 
+def test_starts_at_initial_position():
+    driver = RobotDriver(initial_position=[100, -50, -20])
+    assert driver.position == [100.0, -50.0, -20.0]
+    assert run(driver.move([100, -50, 0], FAST)) == [100.0, -50.0, 0.0]
+
+
+def test_initial_position_outside_limits_is_rejected():
+    with pytest.raises(MotionError, match="outside the robot limits"):
+        RobotDriver(initial_position=[0, 0, -1500])
+
+
 def test_move_to_current_position_returns_immediately():
     driver = RobotDriver()
     assert run(driver.move([0, 0, 0], FAST)) == [0.0, 0.0, 0.0]

@@ -7,7 +7,7 @@ import logging
 import os
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import AsyncIterator
+from typing import AsyncIterator, Optional
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,8 +15,9 @@ from communication.app import VentionApp
 
 from app import api
 from app.config import CellConfig, validate_config
-from app.config_store import ConfigStore, init_database
-from app.machine import GantryMachine
+from app.config_store import ConfigStore, RobotStateStore, init_database
+from app.machine import GantryMachine, RobotSnapshot
+from app.robot_driver import GantryDriver, MotionError, RobotDriver
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,48 @@ def load_startup_config(store: ConfigStore, machine_limits: list[float]) -> Cell
     return config
 
 
+def load_startup_robot(state_store: RobotStateStore) -> tuple[RobotDriver, Optional[RobotSnapshot]]:
+    """A simulator driver placed where the robot was last saved, plus that saved state.
+
+    Falls back to a robot at the origin (and no saved state) if nothing was
+    saved or the saved position is outside the robot's limits.
+    """
+    snapshot = state_store.load()
+    if snapshot is None:
+        return RobotDriver(), None
+    try:
+        return RobotDriver(initial_position=snapshot.position), snapshot
+    except MotionError as exc:
+        logger.warning("Ignoring invalid saved robot state: %s", exc)
+        return RobotDriver(), None
+
+
+def create_machine(
+    driver: GantryDriver,
+    config: CellConfig,
+    state_store: RobotStateStore,
+    snapshot: Optional[RobotSnapshot] = None,
+) -> GantryMachine:
+    """Build the machine and make it save the robot's state after every transition."""
+    machine = GantryMachine(driver=driver)
+    error = machine.update_config(config)
+    if error:
+        logger.warning("Startup configuration rejected, using defaults: %s", error)
+    if snapshot is not None:
+        machine.restore_robot_state(snapshot)
+    # Transitions happen when a move finishes, the gripper acts, or the machine
+    # stops/faults, so this saves at each of those points (not on every poll).
+    machine.add_state_change_callback(lambda *_: save_robot_state(machine, state_store))
+    return machine
+
+
+def save_robot_state(machine: GantryMachine, state_store: RobotStateStore) -> None:
+    try:
+        state_store.save(machine.robot_snapshot())
+    except Exception:  # noqa: BLE001 - never let a failed save break a transition
+        logger.exception("Failed to save robot state")
+
+
 @asynccontextmanager
 async def lifespan(_: VentionApp) -> AsyncIterator[None]:
     db_url = os.getenv("GANTRY_DB_URL", DEFAULT_DB_URL)
@@ -47,10 +90,12 @@ async def lifespan(_: VentionApp) -> AsyncIterator[None]:
         (BACKEND_DIR / "data").mkdir(exist_ok=True)
     init_database(db_url)
 
-    store = ConfigStore()
-    machine = GantryMachine()
-    machine.update_config(load_startup_config(store, machine.driver.limits))
-    api.runtime.store = store
+    config_store = ConfigStore()
+    state_store = RobotStateStore()
+    driver, snapshot = load_startup_robot(state_store)
+    config = load_startup_config(config_store, driver.limits)
+    machine = create_machine(driver, config, state_store, snapshot)
+    api.runtime.store = config_store
     api.runtime.machine = machine
 
     telemetry = asyncio.create_task(api.telemetry_loop())
@@ -61,6 +106,8 @@ async def lifespan(_: VentionApp) -> AsyncIterator[None]:
         with suppress(asyncio.CancelledError):
             await telemetry
         await machine.cancel_tasks()
+        # Covers a shutdown in the middle of a move.
+        save_robot_state(machine, state_store)
 
 
 app = VentionApp(
