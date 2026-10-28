@@ -6,12 +6,29 @@ A proof-of-concept for a 3-axis gantry cell:
 
 The original exercise statement is [at the end of this file](#exercise-statement), with the checklist ticked.
 
-- [Setup and run](#setup-and-run)
+- [Run with Docker (one command)](#run-with-docker-one-command)
+- [Setup and run (without Docker)](#setup-and-run)
 - [Project structure](#project-structure)
 - [Architecture](#architecture)
 - [Design decisions](#design-decisions)
 - [Assumptions](#assumptions)
 - [Trade-offs and known limitations](#trade-offs-and-known-limitations)
+
+---
+
+## Run with Docker (one command)
+
+With [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine with Compose) running, from this folder:
+
+```bash
+docker compose up --build
+```
+
+Open **http://localhost:8080**. The first build downloads the base images and takes a few minutes; later builds are cached.
+
+- **backend** is the FastAPI app (`python:3.10-slim`). Its database lives on the named volume `gantry-data`, so the configuration and robot state survive `docker compose down` / `up`.
+- **frontend** is the dashboard, built with Node and served by nginx. nginx also forwards `/rpc/` to the backend, so the browser talks to a single origin, and response buffering is off so the telemetry stream flows in real time.
+- Stop with Ctrl+C, or `docker compose down` if started with `-d`. `docker compose down -v` also deletes the volume, resetting the saved configuration and robot state.
 
 ---
 
@@ -72,7 +89,9 @@ npm run lint
 ## Project structure
 
 ```
+docker-compose.yml      whole stack: backend + frontend (nginx) + data volume
 backend/
+  Dockerfile
   robot_sim.py          provided simulator (unchanged)
   app/
     geometry.py         cell layout and table → robot frame transform
@@ -85,6 +104,7 @@ backend/
   tests/                pytest: geometry, driver, machine, API (+ fake drivers)
   proto/app.proto       generated API contract
 frontend/
+  Dockerfile, nginx.conf  build with Node, serve with nginx, proxy /rpc to the backend
   buf.gen.yaml          client code generation from the proto
   src/
     api/                Connect client, useTelemetry (live stream), useConfig
@@ -203,7 +223,7 @@ Commands return `{ok, error}`. A refused command (e.g. Start while busy) comes b
 - **Telemetry is polled and published at about 20 Hz** (about 17 Hz measured on Windows), not pushed on every change. That's simple and plenty for a dashboard.
 - **Robot state saves are audited.** Each save adds a small audit-log row (about 10 per cycle); a long-running cell would prune them.
 - **The vention libraries are pinned to Python 3.10** and are thinly documented. I read their source to confirm several behaviours: the library's own `to_fault` cleanup is never awaited (so the machine cancels its tasks itself), state names can't contain underscores, responses are snake_case while requests also accept camelCase, and stream queues bind to the first event loop.
-- **Not done:** Docker Compose, frontend component tests (Vitest), and the demo video.
+- **Not done:** frontend component tests (Vitest) and the demo video.
 
 ---
 
@@ -253,7 +273,7 @@ You must simulate a "Pick and Place" sequence: picking a cube from **Table A** a
 
   - [x] **Persistence:** Use [`vention-storage`](https://pypi.org/project/vention-storage/) to save configuration (e.g., cube locations) between restarts.
   - [x] **Testing:** Write unit tests for the backend logic or component tests for the frontend.
-  - [ ] **Containerization:** Run the whole stack (Backend + Frontend) with a single command (e.g., Docker Compose).
+  - [x] **Containerization:** Run the whole stack (Backend + Frontend) with a single command (e.g., Docker Compose).
   - [ ] **Demo:** Include a short video recording of your solution in action.
 
 ## **Technical Resources**

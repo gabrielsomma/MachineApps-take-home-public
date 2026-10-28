@@ -1,0 +1,36 @@
+# Whole stack with one command:  docker compose up --build
+# Dashboard: http://localhost:8080
+name: gantry-pick-and-place
+
+services:
+  backend:
+    build: ./backend
+    volumes:
+      # Configuration and robot state survive `docker compose down` / `up`.
+      - gantry-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request as r;
+          r.urlopen(r.Request('http://127.0.0.1:8000/rpc/vention.app.v1.GantryAppService/get_status',
+          data=b'{}', headers={'Content-Type': 'application/json'}), timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  gantry-data:
