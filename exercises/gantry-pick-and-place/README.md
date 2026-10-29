@@ -60,17 +60,6 @@ python -m pytest
 
 ---
 
-## Design notes
-
-- **State machine.** Each motion step (move to cube, lower, grip, lift, move to destination, lower, release, lift) is a state. Its enter callback polls `robot_sim.move_to` until the target is reached, then fires the next step. A motion error, a timeout or Stop sends the machine to `fault`; Reset returns to `ready`.
-- **Simulator wrapper.** `robot_sim.py` is unchanged. `RobotDriver` handles its quirks: it polls the non-blocking `move_to`, turns error strings into exceptions, rejects speed 0, and copies lists to avoid aliasing.
-- **Table frames.** Cube and destination are entered in their table's own frame (0–500 mm) and converted to the robot frame. The table positions aren't given, so I assumed round values that match Figure 1: Table A at (−900, 400) mm, and Table B at (250, −550) mm rotated −45°, with the robot origin at the footprint centre.
-- **Safe motion.** The robot lifts to the travel height (z = 0) before any X/Y move. The pick height is configurable (default −300 mm).
-- **Persistence.** The configuration and the robot's last position are saved with `vention-storage` and restored at startup. The machine always restarts in `ready`, never mid-motion.
-- **Trade-offs.** Stop is a fault that requires a Reset (no pause and resume). The table layout is duplicated in Python and TypeScript. There are no frontend component tests; the backend has 74 tests.
-
----
-
 <a id="exercise-statement"></a>
 
 ## **Problem Statement**
