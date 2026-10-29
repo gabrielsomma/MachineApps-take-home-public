@@ -125,7 +125,6 @@ class GantryMachine(StateMachine):
         self._holding_cube = False
         self._cube_rest: list[float] = []
         self._place_cube_at_start()
-        self.driver.home_position = self.config.home
         # We never call start(): the machine begins in `ready`, and recovery
         # into a half-finished motion after a restart would be unsafe.
         super().__init__(States, transitions=TRANSITIONS, enable_last_state_recovery=False)
@@ -171,7 +170,6 @@ class GantryMachine(StateMachine):
         if error:
             return error
         self.config = replace(config)
-        self.driver.home_position = config.home
         self._place_cube_at_start()
         return None
 
@@ -217,6 +215,8 @@ class GantryMachine(StateMachine):
 
     @guard(Triggers.start_sequence)
     def _config_is_valid(self) -> bool:
+        # request_start() already checks this to return a useful message; the
+        # guard is a safety net in case the trigger is fired directly.
         return validate_config(self.config, self.driver.limits) is None
 
     @guard(Triggers.home, Triggers.jog, Triggers.start_sequence)

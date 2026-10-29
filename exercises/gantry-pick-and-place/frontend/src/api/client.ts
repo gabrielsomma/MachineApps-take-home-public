@@ -5,7 +5,7 @@ import { GantryAppService } from "../gen/app_pb";
 import type { CommandResult } from "../gen/app_pb";
 
 /** Backend RPC root; override with VITE_API_URL (e.g. in a .env.local file). */
-export const API_BASE_URL: string =
+const API_BASE_URL: string =
   import.meta.env.VITE_API_URL ?? "http://localhost:8000/rpc";
 
 const transport = createConnectTransport({
@@ -39,7 +39,7 @@ export async function runCommand(
   }
 }
 
-export function describeError(err: unknown): string {
+function describeError(err: unknown): string {
   if (err instanceof ConnectError) {
     return `Backend unreachable or failed: ${err.rawMessage}`;
   }

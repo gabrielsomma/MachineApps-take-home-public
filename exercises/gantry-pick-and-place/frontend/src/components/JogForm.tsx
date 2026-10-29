@@ -42,7 +42,8 @@ export function JogForm({ enabled, onMove }: JogFormProps) {
                 value={target[axis]}
                 disabled={!enabled || busy}
                 onChange={(event) => {
-                  setTarget({ ...target, [axis]: event.target.value });
+                  const value = event.target.value;
+                  setTarget((current) => ({ ...current, [axis]: value }));
                   setError(null);
                 }}
               />

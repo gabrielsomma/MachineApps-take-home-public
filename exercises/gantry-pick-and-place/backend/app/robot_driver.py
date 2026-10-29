@@ -43,12 +43,6 @@ class GantryDriver(Protocol):
     @property
     def is_moving(self) -> bool: ...
 
-    @property
-    def home_position(self) -> list[float]: ...
-
-    @home_position.setter
-    def home_position(self, value: Sequence[float]) -> None: ...
-
     async def move(self, target: Sequence[float], speed: int) -> list[float]:
         """Move to `target` (mm) at `speed` (mm/s); raise MotionError on failure."""
         ...
@@ -61,17 +55,12 @@ class GantryDriver(Protocol):
 class RobotDriver:
     """`GantryDriver` implementation backed by the provided simulator."""
 
-    def __init__(
-        self,
-        initial_position: Sequence[float] = (0.0, 0.0, 0.0),
-        home_position: Sequence[float] = (0.0, 0.0, 0.0),
-    ) -> None:
+    def __init__(self, initial_position: Sequence[float] = (0.0, 0.0, 0.0)) -> None:
         """`initial_position` lets the app restore where the robot was before a restart."""
         # Always pass fresh lists: Robot's defaults are shared mutable lists.
-        self._robot = Robot(
-            initial_position=self._as_target(initial_position),
-            home_position=self._as_target(home_position),
-        )
+        # Homing is done by the state machine (to the configured home), so the
+        # simulator's own home position is left at its default.
+        self._robot = Robot(initial_position=self._as_target(initial_position), home_position=[0.0, 0.0, 0.0])
         start = self._robot.current_position
         if any(abs(v) > limit for v, limit in zip(start, self._robot.robot_limits)):
             raise MotionError(f"Initial position {start} is outside the robot limits")
@@ -80,14 +69,6 @@ class RobotDriver:
     @property
     def position(self) -> list[float]:
         return list(self._robot.current_position)
-
-    @property
-    def home_position(self) -> list[float]:
-        return list(self._robot.home_position)
-
-    @home_position.setter
-    def home_position(self, value: Sequence[float]) -> None:
-        self._robot.home_position = self._as_target(value)
 
     @property
     def limits(self) -> list[float]:
@@ -129,9 +110,6 @@ class RobotDriver:
             # Also runs on cancellation, so a stopped motion is not resumed later.
             self._robot.axis_speed = [0, 0, 0]
             self._moving = False
-
-    async def home(self, speed: int = 50) -> list[float]:
-        return await self.move(self._robot.home_position, speed)
 
     @staticmethod
     def _as_target(value: Sequence[float]) -> list[float]:

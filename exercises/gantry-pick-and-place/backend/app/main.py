@@ -63,11 +63,11 @@ def create_machine(
     state_store: RobotStateStore,
     snapshot: Optional[RobotSnapshot] = None,
 ) -> GantryMachine:
-    """Build the machine and make it save the robot's state after every transition."""
-    machine = GantryMachine(driver=driver)
-    error = machine.update_config(config)
-    if error:
-        logger.warning("Startup configuration rejected, using defaults: %s", error)
+    """Build the machine and make it save the robot's state after every transition.
+
+    `config` is expected to be valid already (see `load_startup_config`).
+    """
+    machine = GantryMachine(driver=driver, config=config)
     if snapshot is not None:
         machine.restore_robot_state(snapshot)
     # Transitions happen when a move finishes, the gripper acts, or the machine

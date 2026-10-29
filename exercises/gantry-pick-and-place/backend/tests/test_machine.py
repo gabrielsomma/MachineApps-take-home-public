@@ -242,7 +242,13 @@ def test_update_config_validates_and_moves_cube():
 
     assert machine.update_config(CellConfig(cube=(0, 0), home=(5, 5, 0))) is None
     assert machine.cube_position == [-900.0, 400.0, -300.0]
-    assert machine.driver.home_position == [5.0, 5.0, 0.0]
+
+    async def home():
+        machine.request_home()
+        await wait_for_state(machine, "ready")
+
+    run(home())
+    assert machine.driver.position == [5.0, 5.0, 0.0]
 
 
 def test_update_config_refused_while_busy():

@@ -6,7 +6,7 @@ They don't use the simulator: `test_robot_driver.py` covers the real driver.
 import asyncio
 from typing import Sequence
 
-from app.robot_driver import MotionError
+from app.robot_driver import MAX_SPEED, MotionError
 
 
 class FastDriver:
@@ -19,11 +19,9 @@ class FastDriver:
     def __init__(
         self,
         position: Sequence[float] = (0.0, 0.0, 0.0),
-        home_position: Sequence[float] = (0.0, 0.0, 0.0),
         limits: Sequence[float] = (1000.0, 1000.0, 1000.0),
     ) -> None:
         self._position = [float(v) for v in position]
-        self._home_position = [float(v) for v in home_position]
         self.limits = [float(v) for v in limits]
         self._gripper_closed = False
         self._moving = False
@@ -32,14 +30,6 @@ class FastDriver:
     @property
     def position(self) -> list[float]:
         return list(self._position)
-
-    @property
-    def home_position(self) -> list[float]:
-        return list(self._home_position)
-
-    @home_position.setter
-    def home_position(self, value: Sequence[float]) -> None:
-        self._home_position = [float(v) for v in value]
 
     @property
     def gripper_closed(self) -> bool:
@@ -63,8 +53,8 @@ class FastDriver:
         return list(goal)
 
     def _check(self, target: Sequence[float], speed: int) -> list[float]:
-        if not 0 < speed <= 100:
-            raise MotionError(f"Speed must be in (0, 100] mm/s, got {speed}")
+        if not 0 < speed <= MAX_SPEED:
+            raise MotionError(f"Speed must be in (0, {MAX_SPEED}] mm/s, got {speed}")
         goal = [float(v) for v in target]
         for axis, value in enumerate(goal):
             if abs(value) > self.limits[axis]:

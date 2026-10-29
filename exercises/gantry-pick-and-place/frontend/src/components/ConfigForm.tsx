@@ -155,13 +155,13 @@ export function ConfigForm({ saved, enabled, onSave, onPreview }: ConfigFormProp
     setMessage(null);
   }
 
-  const field = (name: Field, step = "1") => (
+  const field = (name: Field) => (
     <label className="field">
       <span>{LABELS[name].replace(/^(Cube|Destination|Home) /, "")}</span>
       <input
         type="number"
         inputMode="decimal"
-        step={step}
+        step="1"
         value={draft[name]}
         disabled={!enabled || saving}
         onChange={(event) => update(name, event.target.value)}

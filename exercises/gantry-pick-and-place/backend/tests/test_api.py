@@ -78,7 +78,7 @@ VALID_CONFIG = {
 }
 
 
-def test_status_uses_camel_case_and_starts_ready(client):
+def test_status_starts_ready(client):
     status = rpc(client, "get_status")
     assert status["state"] == "ready"
     assert status["position"] == {"x": 0.0, "y": 0.0, "z": 0.0}

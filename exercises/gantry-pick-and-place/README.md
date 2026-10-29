@@ -78,7 +78,7 @@ Open http://localhost:5173.
 ### Tests
 
 ```bash
-# backend/, with the venv active: 75 tests, about 4 s
+# backend/, with the venv active: 74 tests, about 4 s
 python -m pytest
 
 # frontend/: type check, production build and lint

@@ -102,15 +102,6 @@ def test_new_move_after_cancellation_is_not_skewed():
     assert not driver.is_moving
 
 
-def test_home_moves_to_configured_home_position():
-    driver = RobotDriver(home_position=[3, 3, 3])
-    run(driver.move([5, 0, 0], FAST))
-    assert run(driver.home(FAST)) == [3.0, 3.0, 3.0]
-
-    driver.home_position = [0, 0, 0]
-    assert run(driver.home(FAST)) == [0.0, 0.0, 0.0]
-
-
 def test_gripper_open_and_close():
     driver = RobotDriver()
     assert driver.gripper_closed is False

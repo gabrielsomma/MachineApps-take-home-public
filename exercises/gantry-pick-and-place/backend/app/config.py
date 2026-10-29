@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 
 from app.geometry import TableId, is_on_table
+from app.robot_driver import MAX_SPEED
 
 
 @dataclass
@@ -30,8 +31,8 @@ def validate_config(config: CellConfig, limits: Sequence[float]) -> Optional[str
         return f"Cube position {_fmt(config.cube)} is not on Table A (x and y must be 0-500 mm)"
     if not is_on_table(TableId.B, *config.destination):
         return f"Destination {_fmt(config.destination)} is not on Table B (x and y must be 0-500 mm)"
-    if not 1 <= config.speed <= 100:
-        return f"Speed must be between 1 and 100 mm/s, got {config.speed}"
+    if not 1 <= config.speed <= MAX_SPEED:
+        return f"Speed must be between 1 and {MAX_SPEED} mm/s, got {config.speed}"
     if config.pick_z >= config.safe_z:
         return f"Pick height ({config.pick_z:g}) must be below the travel height ({config.safe_z:g})"
     z_limit = limits[2]
